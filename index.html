@@ -47,16 +47,12 @@
     content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
     background:linear-gradient(180deg, var(--teal-500), var(--teal-700));
   }
-  .radar-wrap{display:flex; flex-direction:column; align-items:center; padding:8px 0 4px;}
-  .radar{width:180px; height:180px;}
-  .pulse-ring{fill:none; stroke:var(--teal-500); stroke-width:1; opacity:.35; transform-origin:center; animation:pulse 2.4s ease-out infinite;}
-  .pulse-ring.r2{animation-delay:.8s;} .pulse-ring.r3{animation-delay:1.6s;}
-  @keyframes pulse{0%{transform:scale(.55); opacity:.5;} 100%{transform:scale(1.05); opacity:0;}}
-  .status-pill{margin-top:10px; font-size:13px; font-weight:500; padding:5px 14px; border-radius:999px;}
+  .status-pill{display:inline-block; margin-top:0; font-size:13px; font-weight:500; padding:5px 14px; border-radius:999px;}
   .status-pill.in{background:var(--success-bg); color:var(--success);}
   .status-pill.out{background:var(--danger-bg); color:var(--danger);}
   .status-pill.wait{background:var(--teal-100); color:var(--teal-700);}
-  .distance-line{margin-top:6px; font-size:12px; color:var(--ink-muted); font-family:'JetBrains Mono',monospace; text-align:center;}
+  .location-info{display:flex; flex-direction:column; align-items:center; gap:6px; padding-top:12px;}
+  .distance-line{font-size:12px; color:var(--ink-muted); font-family:'JetBrains Mono',monospace; text-align:center;}
   label{display:block; font-size:12px; color:var(--ink-muted); margin-bottom:6px; font-weight:500;}
   input[type=text], input[type=number], input[type=password], select{
     width:100%; height:42px; border:1px solid var(--line); border-radius:10px;
@@ -97,6 +93,23 @@
   table.rekap{width:100%; border-collapse:collapse; font-size:12.5px;}
   table.rekap th{text-align:left; color:var(--ink-muted); font-weight:500; padding:6px 4px; border-bottom:1px solid var(--line);}
   table.rekap td{padding:7px 4px; border-bottom:1px solid var(--line);}
+  .map-wrap{position:relative; width:100%; height:220px; border-radius:12px; overflow:hidden; background:var(--teal-50); border:1px solid var(--line);}
+  .map-frame{width:100%; height:100%; border:0; display:block;}
+  .radius-overlay{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    border-radius:50%; pointer-events:none; z-index:2;
+    border:2px dashed var(--teal-500); background:rgba(18,144,123,.12);
+    transition: width .3s ease, height .3s ease, border-color .3s ease, background-color .3s ease;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .radius-overlay span{
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; font-weight:500;
+    background:rgba(255,255,255,.85); padding:1px 5px; border-radius:6px; white-space:nowrap;
+  }
+  .radius-caption{font-size:11px; color:var(--ink-muted); text-align:center;}
+  .map-placeholder{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:12.5px; color:var(--ink-muted); background:var(--teal-50);}
+  .map-placeholder.hidden{display:none;}
+  .map-wrap.admin-map{height:160px; margin-top:10px;}
 </style>
 </head>
 <body>
@@ -119,17 +132,15 @@
 
   <div class="card">
     <p class="section-title">Lokasi</p>
-    <div class="radar-wrap">
-      <svg class="radar" viewBox="0 0 180 180">
-        <circle class="pulse-ring" cx="90" cy="90" r="80"/>
-        <circle class="pulse-ring r2" cx="90" cy="90" r="80"/>
-        <circle class="pulse-ring r3" cx="90" cy="90" r="80"/>
-        <circle cx="90" cy="90" r="80" fill="none" stroke="#DCEFEA" stroke-width="1.5"/>
-        <circle cx="90" cy="90" r="45" fill="#F1F8F6" stroke="#DCEFEA" stroke-width="1"/>
-        <circle id="dot" cx="90" cy="90" r="7" fill="#0B6B5D"/>
-      </svg>
+    <div class="map-wrap">
+      <iframe id="mapFrame" class="map-frame" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+      <div class="radius-overlay" id="radiusOverlay"></div>
+      <div class="map-placeholder" id="mapPlaceholder">Menunggu lokasi…</div>
+    </div>
+    <div class="location-info">
       <div class="status-pill wait" id="statusPill">Memuat…</div>
       <div class="distance-line" id="distLine">—</div>
+      <div class="radius-caption" id="radiusCaption">—</div>
     </div>
   </div>
 
@@ -195,6 +206,10 @@
       <button class="btn-primary" id="btnSaveSettings">Simpan</button>
     </div>
     <p class="notice" style="margin-top:10px;">Berdiri di klinik lalu tekan "Gunakan lokasi saat ini" agar titik acuan absen akurat. Pengaturan ini berlaku untuk semua pegawai.</p>
+    <div class="map-wrap admin-map">
+      <iframe id="adminMapFrame" class="map-frame" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+      <div class="map-placeholder" id="adminMapPlaceholder">Isi latitude &amp; longitude untuk pratinjau peta</div>
+    </div>
   </div>
 
   <div class="card">
@@ -250,18 +265,6 @@
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   }
 
-  function setDotPosition(distance){
-    const dot = document.getElementById('dot');
-    const maxDisplayDist = radiusM * 2.2;
-    const ratio = Math.min(distance / maxDisplayDist, 1);
-    const radiusPx = 45 + ratio * 35;
-    const angle = (distance * 37) % 360;
-    const rad = angle * Math.PI/180;
-    dot.setAttribute('cx', (90 + radiusPx * Math.cos(rad)).toFixed(1));
-    dot.setAttribute('cy', (90 + radiusPx * Math.sin(rad)).toFixed(1));
-    dot.setAttribute('fill', distance <= radiusM ? '#2F9E63' : '#D64545');
-  }
-
   function refreshButtons(){
     const inRange = currentDistance !== null && currentDistance <= radiusM;
     const hasName = document.getElementById('nama').value.trim().length > 0;
@@ -270,18 +273,66 @@
     document.getElementById('btnPulang').disabled = !(inRange && hasName && hasOffice);
   }
 
+  function updateMainMap(){
+    const frame = document.getElementById('mapFrame');
+    const placeholder = document.getElementById('mapPlaceholder');
+    if(!currentCoords){
+      placeholder.classList.remove('hidden');
+      placeholder.textContent = 'Menunggu lokasi…';
+      document.getElementById('radiusOverlay').style.display = 'none';
+      return;
+    }
+    // Cukup tampilkan pin di lokasi HP saat ini, tanpa panel rute/directions
+    const src = 'https://www.google.com/maps?q=' + currentCoords.lat + ',' + currentCoords.lng + '&z=' + MAP_ZOOM + '&output=embed';
+    if(frame.src !== src) frame.src = src;
+    placeholder.classList.add('hidden');
+  }
+
+  const MAP_ZOOM = 16;
+  function updateRadiusOverlay(){
+    const overlay = document.getElementById('radiusOverlay');
+    const caption = document.getElementById('radiusCaption');
+    if(!currentCoords){
+      overlay.style.display = 'none';
+      caption.textContent = '—';
+      return;
+    }
+    // Perkiraan meter per pixel pada peta Google Maps (proyeksi Web Mercator standar)
+    const metersPerPixel = 156543.03392 * Math.cos(currentCoords.lat * Math.PI/180) / Math.pow(2, MAP_ZOOM);
+    let diameterPx = (2 * radiusM) / metersPerPixel;
+    diameterPx = Math.max(24, Math.min(diameterPx, 200));
+    overlay.style.width = diameterPx + 'px';
+    overlay.style.height = diameterPx + 'px';
+    overlay.style.display = 'flex';
+    overlay.innerHTML = '<span>' + radiusM + ' m</span>';
+    if(!office){
+      overlay.style.borderColor = '#12907B';
+      overlay.style.background = 'rgba(18,144,123,.12)';
+      caption.textContent = 'Perkiraan radius ' + radiusM + ' m dari titik pin (klinik belum diatur admin)';
+    } else if(currentDistance !== null && currentDistance <= radiusM){
+      overlay.style.borderColor = '#2F9E63';
+      overlay.style.background = 'rgba(47,158,99,.14)';
+      caption.textContent = 'Lingkaran menunjukkan perkiraan radius ' + radiusM + ' m yang diperbolehkan';
+    } else {
+      overlay.style.borderColor = '#D64545';
+      overlay.style.background = 'rgba(214,69,69,.14)';
+      caption.textContent = 'Lingkaran menunjukkan perkiraan radius ' + radiusM + ' m yang diperbolehkan';
+    }
+  }
+
   function onPosition(pos){
     currentCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
     const pill = document.getElementById('statusPill');
+    updateMainMap();
     if(!office){
       pill.className = 'status-pill wait';
       pill.textContent = 'Lokasi klinik belum diatur admin';
       document.getElementById('distLine').textContent = '—';
+      updateRadiusOverlay();
       return;
     }
     const d = haversine(pos.coords.latitude, pos.coords.longitude, office.lat, office.lng);
     currentDistance = d;
-    setDotPosition(d);
     if(d <= radiusM){
       pill.className = 'status-pill in';
       pill.textContent = 'Di dalam area klinik';
@@ -290,6 +341,7 @@
       pill.textContent = 'Di luar area klinik';
     }
     document.getElementById('distLine').textContent = 'Jarak ke klinik: ' + Math.round(d) + ' m (radius ' + radiusM + ' m)';
+    updateRadiusOverlay();
     refreshButtons();
   }
 
@@ -297,6 +349,10 @@
     document.getElementById('statusPill').className = 'status-pill out';
     document.getElementById('statusPill').textContent = 'Tidak bisa mengakses lokasi';
     document.getElementById('distLine').textContent = 'Aktifkan izin lokasi di browser.';
+    document.getElementById('mapPlaceholder').classList.remove('hidden');
+    document.getElementById('mapPlaceholder').textContent = 'Tidak bisa mengakses lokasi. Aktifkan izin lokasi di browser.';
+    document.getElementById('radiusOverlay').style.display = 'none';
+    document.getElementById('radiusCaption').textContent = '—';
   }
 
   function startWatching(){
@@ -315,8 +371,23 @@
       document.getElementById('lat').value = data.office_lat;
       document.getElementById('lng').value = data.office_lng;
       document.getElementById('radius').value = radiusM;
+      updateAdminMap(data.office_lat, data.office_lng);
     }
     refreshButtons();
+    updateMainMap();
+    updateRadiusOverlay();
+  }
+
+  function updateAdminMap(lat, lng){
+    const frame = document.getElementById('adminMapFrame');
+    const placeholder = document.getElementById('adminMapPlaceholder');
+    if(isNaN(lat) || isNaN(lng)){
+      placeholder.classList.remove('hidden');
+      return;
+    }
+    const src = 'https://www.google.com/maps?q=' + lat + ',' + lng + '&z=17&output=embed';
+    if(frame.src !== src) frame.src = src;
+    placeholder.classList.add('hidden');
   }
 
   async function loadPegawai(){
@@ -411,7 +482,14 @@
     navigator.geolocation.getCurrentPosition(pos => {
       document.getElementById('lat').value = pos.coords.latitude.toFixed(6);
       document.getElementById('lng').value = pos.coords.longitude.toFixed(6);
+      updateAdminMap(pos.coords.latitude, pos.coords.longitude);
     }, () => alert('Gagal mengambil lokasi. Pastikan izin lokasi aktif.'), {enableHighAccuracy:true});
+  });
+
+  ['lat','lng'].forEach(id => {
+    document.getElementById(id).addEventListener('input', () => {
+      updateAdminMap(parseFloat(document.getElementById('lat').value), parseFloat(document.getElementById('lng').value));
+    });
   });
 
   document.getElementById('btnSaveSettings').addEventListener('click', async () => {
@@ -429,7 +507,20 @@
     office = { lat, lng };
     radiusM = isNaN(r) ? 100 : r;
     alert('Lokasi klinik tersimpan.');
+    if(currentCoords){
+      currentDistance = haversine(currentCoords.lat, currentCoords.lng, office.lat, office.lng);
+      const pill = document.getElementById('statusPill');
+      if(currentDistance <= radiusM){
+        pill.className = 'status-pill in'; pill.textContent = 'Di dalam area klinik';
+      } else {
+        pill.className = 'status-pill out'; pill.textContent = 'Di luar area klinik';
+      }
+      document.getElementById('distLine').textContent = 'Jarak ke klinik: ' + Math.round(currentDistance) + ' m (radius ' + radiusM + ' m)';
+    }
     refreshButtons();
+    updateAdminMap(lat, lng);
+    updateMainMap();
+    updateRadiusOverlay();
   });
 
   document.getElementById('btnTambahPegawai').addEventListener('click', async () => {
