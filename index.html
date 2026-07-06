@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Presensi — Aurora Dental Care</title>
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -20,14 +22,31 @@
     --radius:16px;
   }
   *{box-sizing:border-box;}
-  body{margin:0; background:var(--paper); color:var(--ink); font-family:'Inter',sans-serif; -webkit-tap-highlight-color:transparent;}
-  .screen{max-width:420px; margin:0 auto; min-height:100vh; padding:20px 18px 40px;}
-  header{display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;}
-  .brand .name{font-family:'Fraunces',serif; font-weight:600; font-size:20px; color:var(--teal-900); line-height:1.15;}
-  .brand .tag{font-size:12px; color:var(--ink-muted);}
+  body{
+    margin:0; color:var(--ink); font-family:'Inter',sans-serif; -webkit-tap-highlight-color:transparent;
+    background:
+      radial-gradient(560px circle at 15% -8%, rgba(18,144,123,.10), transparent 60%),
+      radial-gradient(480px circle at 100% 0%, rgba(217,83,47,.06), transparent 55%),
+      var(--paper);
+    min-height:100vh;
+  }
+  .topbar{height:5px; background:linear-gradient(90deg, var(--teal-500), var(--teal-700) 55%, var(--coral-600));}
+  .screen{max-width:420px; margin:0 auto; min-height:100vh; padding:22px 18px 40px;}
+  header{display:flex; align-items:center; gap:12px; justify-content:space-between; margin-bottom:22px;}
+  .brand{display:flex; align-items:center; gap:12px;}
+  .brand img{width:44px; height:44px; object-fit:contain; flex-shrink:0;}
+  .brand .name{font-family:'Fraunces',serif; font-weight:600; font-size:19px; color:var(--teal-900); line-height:1.2;}
+  .brand .tag{font-size:11.5px; color:var(--ink-muted); letter-spacing:.02em;}
   .clock{font-family:'JetBrains Mono',monospace; font-size:15px; color:var(--teal-700); text-align:right;}
   .clock .date{font-size:11px; color:var(--ink-muted); font-family:'Inter',sans-serif;}
-  .card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:18px; margin-bottom:14px;}
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:18px; margin-bottom:14px; position:relative; overflow:hidden;
+  }
+  .card::before{
+    content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
+    background:linear-gradient(180deg, var(--teal-500), var(--teal-700));
+  }
   .radar-wrap{display:flex; flex-direction:column; align-items:center; padding:8px 0 4px;}
   .radar{width:180px; height:180px;}
   .pulse-ring{fill:none; stroke:var(--teal-500); stroke-width:1; opacity:.35; transform-origin:center; animation:pulse 2.4s ease-out infinite;}
@@ -81,12 +100,16 @@
 </style>
 </head>
 <body>
+<div class="topbar"></div>
 <div class="screen" id="appView">
 
   <header>
     <div class="brand">
-      <span class="name">Aurora Dental Care</span>
-      <span class="tag">Presensi pegawai</span>
+      <img src="logo.png" alt="Logo Aurora Dental Care">
+      <div>
+        <div class="name">Aurora Dental Care</div>
+        <div class="tag">Presensi pegawai</div>
+      </div>
     </div>
     <div class="clock">
       <div id="jam">--:--:--</div>
@@ -146,7 +169,10 @@
 
 <div class="screen hidden" id="adminView">
   <div class="admin-header">
-    <h2>Dashboard admin</h2>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <img src="logo.png" alt="Logo Aurora Dental Care" style="width:32px; height:32px; object-fit:contain;">
+      <h2>Dashboard admin</h2>
+    </div>
     <button class="tab-close" id="btnCloseAdmin">Tutup</button>
   </div>
 
