@@ -139,6 +139,17 @@
   .map-placeholder{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:12.5px; color:var(--ink-muted); background:var(--teal-50);}
   .map-placeholder.hidden{display:none;}
   .map-wrap.admin-map{height:160px; margin-top:10px;}
+  .toast{
+    position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(16px);
+    background:var(--ink); color:#fff; padding:11px 20px; border-radius:999px;
+    font-size:13px; font-weight:500; box-shadow:0 10px 28px rgba(0,0,0,.28);
+    opacity:0; pointer-events:none; transition:opacity .25s ease, transform .25s ease;
+    z-index:200; max-width:86%; text-align:center; line-height:1.4;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+  .toast.success{background:var(--success);}
+  .toast.warn{background:var(--danger);}
+  .attendance-hint{font-size:11.5px; color:var(--ink-muted); text-align:center; margin-top:8px;}
 </style>
 </head>
 <body>
@@ -189,6 +200,7 @@
       <button class="btn-primary" id="btnMasuk" disabled>Absen masuk</button>
       <button class="btn-coral" id="btnPulang" disabled>Absen pulang</button>
     </div>
+    <div class="attendance-hint" id="attendanceHint"></div>
   </div>
 
   <div class="card">
@@ -281,6 +293,8 @@
   let currentDistance = null;
   let currentCoords = null;
   let watchId = null;
+  let todayRecords = [];
+  let toastTimer = null;
 
   function pad(n){ return n.toString().padStart(2,'0'); }
   function updateClock(){
@@ -300,12 +314,40 @@
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   }
 
+  function showToast(message, type){
+    const el = document.getElementById('toast');
+    el.textContent = message;
+    el.className = 'toast show' + (type ? ' ' + type : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.classList.remove('show'); }, 2800);
+  }
+
+  function hasRecordToday(nama, jenis){
+    return todayRecords.some(r => r.nama_pegawai === nama && r.jenis === jenis);
+  }
+
   function refreshButtons(){
     const inRange = currentDistance !== null && currentDistance <= radiusM;
-    const hasName = document.getElementById('nama').value.trim().length > 0;
+    const nama = document.getElementById('nama').value.trim();
+    const hasName = nama.length > 0;
     const hasOffice = office !== null;
-    document.getElementById('btnMasuk').disabled = !(inRange && hasName && hasOffice);
-    document.getElementById('btnPulang').disabled = !(inRange && hasName && hasOffice);
+    const sudahMasuk = hasName && hasRecordToday(nama, 'Masuk');
+    const sudahPulang = hasName && hasRecordToday(nama, 'Pulang');
+    const baseOk = inRange && hasName && hasOffice;
+    document.getElementById('btnMasuk').disabled = !baseOk || sudahMasuk;
+    document.getElementById('btnPulang').disabled = !baseOk || sudahPulang;
+    const hint = document.getElementById('attendanceHint');
+    if(!hasName){
+      hint.textContent = '';
+    } else if(sudahMasuk && sudahPulang){
+      hint.textContent = 'Anda sudah absen masuk & pulang hari ini.';
+    } else if(sudahMasuk){
+      hint.textContent = 'Anda sudah absen masuk hari ini.';
+    } else if(sudahPulang){
+      hint.textContent = 'Anda sudah absen pulang hari ini.';
+    } else {
+      hint.textContent = '';
+    }
   }
 
   function updateMainMap(){
@@ -448,9 +490,11 @@
     const { data, error } = await sb.from('absensi').select('*')
       .gte('waktu', startOfTodayISO())
       .order('waktu', { ascending:false });
+    todayRecords = (!error && data) ? data : [];
     const list = document.getElementById('historyList');
     if(error || !data || data.length === 0){
       list.innerHTML = '<div class="empty">Belum ada absen tercatat.</div>';
+      refreshButtons();
       return;
     }
     list.innerHTML = data.map(h => {
@@ -463,11 +507,17 @@
         <span class="badge ${h.jenis === 'Masuk' ? 'masuk' : 'pulang'}">${h.jenis}</span>
       </div>`;
     }).join('');
+    refreshButtons();
   }
 
   async function recordAttendance(jenis){
     const nama = document.getElementById('nama').value;
     if(!nama || !currentCoords) return;
+    if(hasRecordToday(nama, jenis)){
+      showToast('Anda sudah absen ' + jenis.toLowerCase() + ' hari ini.', 'warn');
+      refreshButtons();
+      return;
+    }
     const btn = jenis === 'Masuk' ? document.getElementById('btnMasuk') : document.getElementById('btnPulang');
     btn.disabled = true;
     const { error } = await sb.from('absensi').insert({
@@ -480,6 +530,7 @@
     if(error){
       alert('Gagal menyimpan absen: ' + error.message);
     } else {
+      showToast('Selamat, absen ' + jenis.toLowerCase() + ' berhasil!', 'success');
       await loadTodayHistory();
     }
     refreshButtons();
@@ -616,5 +667,6 @@
     startWatching();
   })();
 </script>
+<div class="toast" id="toast"></div>
 </body>
 </html>
